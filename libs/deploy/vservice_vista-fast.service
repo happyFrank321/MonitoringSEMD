@@ -1,0 +1,16 @@
+[Unit]
+Description=VistaFast
+Documentation=http://213.170.91.2:8089/pydev/vista-fast/
+After=mariadb.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=/var/www/html/vista-fast/venv/bin/python3 main.py
+StandardOutput=append:/var/log/vista-fast/fastapi.log
+StandardError=append:/var/log/vista-fast/fastapi.log
+WorkingDirectory=/var/www/html/vista-fast/
+
+[Install]
+WantedBy=multi-user.target
