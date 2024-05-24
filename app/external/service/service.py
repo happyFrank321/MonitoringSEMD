@@ -12,7 +12,7 @@ from core.logger import logger, Logger
 from core.models.models import Action, Event, ActionType, RbPrintTemplate, Client, RbIEMKDocument, EventType, \
     GetStatusTable2
 from .child_services.Vista3Service import SemdService
-from .models import MSEInfoRequest, SemdInfo
+from .models import MSEInfoRequest, SemdInfo, SemdInsertModel
 
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
@@ -160,8 +160,11 @@ class MonitoringService:
             start_date: datetime = None,
             end_date: datetime = None,
     ):
+        """
+        Фнукция для получения массива СЭМДов для проверки их формирования
+        """
 
-        # Получилось так сделать, но надо создавать отдельный коннект внутри кадл
+        # Получаем список всех СЭМДов за определенное время
         results = await asyncio.gather(
             self.collect_semd_action_info(start_date, end_date),
             self.collect_semd_event_info(start_date, end_date)
@@ -171,6 +174,7 @@ class MonitoringService:
         return result
 
     async def insert_semd_all_info(self, semd_list: List[SemdInfo]):
+
         tasks = [self.process_semd_data(semd) for semd in semd_list]
 
         for task in asyncio.as_completed(tasks):
@@ -180,13 +184,42 @@ class MonitoringService:
 
         async with self.semaphore:
             response = await self.SemdService.get_semd_info(data)
-            response = await self.insert_semd_info(SemdInfo(**response))
+            response = await self.insert_semd_info(SemdInsertModel(**response))
             return response
 
-    async def insert_semd_info(self, data: SemdInfo):
-        record = insert(GetStatusTable2).values(**data.dict())
-        await CConnection().execute_stmt(record)
+    async def insert_semd_info(self, data: SemdInsertModel):
+
+        existing_data = await self.check_semd_exist(data)
+
+        if not existing_data.id:
+            query = insert(GetStatusTable2).values(**existing_data.dict())
+            await CConnection().execute_stmt(query)
         return True
+
+    async def check_semd_exist(self, data: SemdInsertModel):
+        """
+        Проверка на существование записи в БД
+        """
+        query = select(
+            GetStatusTable2.id
+        ) \
+            .select_from(
+            GetStatusTable2
+        ) \
+            .where(
+            GetStatusTable2.event_id == data.event_id,
+            GetStatusTable2.person_id == data.person_id,
+            GetStatusTable2.client_id == data.client_id,
+            GetStatusTable2.doc_oid == data.doc_oid,
+            GetStatusTable2.template_id == data.template_id,
+            GetStatusTable2.semd_name == data.semd_name,
+            GetStatusTable2.semd_code == data.semd_code,
+            GetStatusTable2.action_id == data.action_id,
+        )
+        result = await CConnection().get_value(query)
+        data.id = result if result else None
+        return data
+
 
     async def main_scrypt(
             self,

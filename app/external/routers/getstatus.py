@@ -23,9 +23,9 @@ async def get_semd_info_list(
     end_date: datetime = None,
 ):
     if not end_date:
-        end_date = datetime.now() - timedelta(days=5)
+        end_date = datetime.now() - timedelta(hours=16)  # TODO не забыть поменять время
     if not start_date:
-        start_date = end_date - timedelta(hours=10)
+        start_date = end_date - timedelta(hours=1)
     return await MonitoringService().main_scrypt(
         start_date=start_date,
         end_date=end_date
